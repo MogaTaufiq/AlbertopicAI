@@ -5,7 +5,8 @@ import spacy
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
-from text_cleaning import clean_text_advanced  # Import fungsi dari text_cleaning.py
+from src.preprocessing.text_cleaning import clean_text_advanced
+from .text_cleaning import clean_text_advanced
 
 # Pastikan bahwa kita sudah mengunduh beberapa resources NLTK
 nltk.download('punkt')
