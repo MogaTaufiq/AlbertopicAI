@@ -15,18 +15,18 @@ def load_data(input_file_path):
 def perform_bertopic_modeling(df):
     """Perform BERTopic for topic modeling."""
     # Menggunakan SentenceTransformer untuk menghasilkan embeddings
-    model = SentenceTransformer('all-MiniLM-L6-v2')  # Model transformer BERT yang ringan
+    model = SentenceTransformer('paraphrase-MiniLM-L6-v2')  # Model transformer BERT yang ringan
     embeddings = model.encode(df['Processed_Text'].tolist(), show_progress_bar=True)
 
     # Menerapkan BERTopic
-    topic_model = BERTopic(nr_topics=5)
+    topic_model = BERTopic(nr_topics="auto")
     topics, _ = topic_model.fit_transform(df['Processed_Text'].tolist(), embeddings)
     
     return topic_model, topics
 
 def save_model(topic_model, filename='bertopic_model.pkl'):
     """Save the trained BERTopic model to disk."""
-    model_dir = os.path.join('..', '..', 'data', 'final')
+    model_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'data', 'final')
     os.makedirs(model_dir, exist_ok=True)
     model_path = os.path.join(model_dir, filename)
     with open(model_path, 'wb') as f:
@@ -36,7 +36,7 @@ def save_model(topic_model, filename='bertopic_model.pkl'):
 def save_topic_results(df, topics, filename='topic_results.csv'):
     """Assign topics to the dataset and save the results."""
     df['Topic'] = topics
-    result_file_path = os.path.join('..', '..', 'data', 'final', filename)
+    result_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'data', 'final', filename)
     df.to_csv(result_file_path, index=False)
     print(f"Topic results saved to {result_file_path}")
 
@@ -49,7 +49,7 @@ def print_top_words(topic_model):
 
 if __name__ == "__main__":
     # Path ke file data yang sudah diproses
-    processed_data_path = os.path.join('..', '..', 'data', 'processed_data', 'processed_titles.csv')
+    processed_data_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'data', 'processed_data', 'processed_titles.csv')
     
     # Load data
     df = load_data(processed_data_path)

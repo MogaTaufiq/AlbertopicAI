@@ -1,12 +1,13 @@
 import pandas as pd
-import os
 import nltk
 import spacy
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
-from src.preprocessing.text_cleaning import clean_text_advanced
 from .text_cleaning import clean_text_advanced
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
 # Pastikan bahwa kita sudah mengunduh beberapa resources NLTK
 nltk.download('punkt')
@@ -51,7 +52,7 @@ def preprocess_data(input_file_path, output_file_path, stopwords):
 
 if __name__ == "__main__":
     # Path menuju file yang disimpan oleh scraper
-    rawdata_path = os.path.join('..', '..','data', 'rawdata', 'article_titles.csv')  # Path file input
+    rawdata_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'data', 'rawdata', 'article_titles.csv')
     
     # Mendapatkan direktori skrip saat ini untuk membuat path output relatif
     base_dir = os.path.dirname(os.path.abspath(__file__))

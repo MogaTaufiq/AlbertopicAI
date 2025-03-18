@@ -19,7 +19,7 @@ def save_titles_to_csv(titles, filename='article_titles.csv'):
     # Tentukan jalur folder rawdata di dalam data menggunakan jalur absolut
     base_dir = os.path.dirname(os.path.abspath(__file__))  # Mendapatkan direktori dari skrip saat ini
     project_root = os.path.dirname(os.path.dirname(os.path.dirname(base_dir)))
-    file_path = os.path.join(project_root, 'data', 'rawdata', filename)
+    file_path = os.path.join(project_root, 'AlbertAI', 'data', 'rawdata', filename)
     
     # Membuat folder rawdata jika belum ada
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
