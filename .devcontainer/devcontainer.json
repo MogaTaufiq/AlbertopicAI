@@ -1,11 +1,10 @@
 {
-    "name": "FastAPI Scraper",
-    "build": {
-        "dockerfile": "Dockerfile"
-    },
+    "name": "AlbertopicAI",
+    "dockerFile": "Dockerfile",
+    "appPort": [8000],
     "forwardPorts": [8000],
-    "postCreateCommand": "echo 'Container is ready! 🌟'",
     "settings": {
         "terminal.integrated.defaultProfile.linux": "bash"
-    }
+    },
+    "postCreateCommand": "pip install -r requirements.txt"
 }
