@@ -1,0 +1,11 @@
+{
+    "name": "FastAPI Scraper",
+    "build": {
+        "dockerfile": "Dockerfile"
+    },
+    "forwardPorts": [8000],
+    "postCreateCommand": "echo 'Container is ready! 🌟'",
+    "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+    }
+}
