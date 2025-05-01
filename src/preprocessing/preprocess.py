@@ -1,65 +1,82 @@
+import os
+import re
+import string
+import sys
 import pandas as pd
 import nltk
 import spacy
-from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
-from nltk.stem import WordNetLemmatizer
-from .text_cleaning import clean_text_advanced
-import sys
-import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
-# Pastikan bahwa kita sudah mengunduh beberapa resources NLTK
+from nltk.tokenize import word_tokenize
+from nltk.stem import WordNetLemmatizer
+
+# Setup environment
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 nltk.download('punkt')
 nltk.download('stopwords')
 nltk.download('wordnet')
-
-# Muat model spaCy untuk lemmatization (spaCy lebih cepat dan akurat untuk lemmatization)
 nlp = spacy.load('en_core_web_sm')
 
-# Fungsi untuk preprocessing teks
+def clean_text_basic(text):
+    text = re.sub(r'[^a-zA-Z\s]', '', text)
+    return text.lower()
+
+def remove_extra_whitespace(text):
+    return re.sub(r'\s+', ' ', text).strip()
+
+def remove_stopwords(text, stopwords):
+    words = text.split()
+    return ' '.join([word for word in words if word not in stopwords])
+
+def remove_punctuation(text):
+    return text.translate(str.maketrans('', '', string.punctuation))
+
+def clean_text_advanced(text, stopwords=None):
+    text = clean_text_basic(text)
+    text = remove_extra_whitespace(text)
+    if stopwords:
+        text = remove_stopwords(text, stopwords)
+    text = remove_punctuation(text)
+    return text
+
 def preprocess_text(text, stopwords):
-    """Preprocess a single piece of text."""
-    # Gunakan fungsi clean_text_advanced untuk pembersihan teks lanjutan
     cleaned_text = clean_text_advanced(text, stopwords)
     return cleaned_text
 
-# Fungsi untuk memproses seluruh dataset
 def preprocess_data(input_file_path, output_file_path, stopwords):
-    """Load, preprocess, and save the dataset."""
-    # Memastikan file ada dan dapat dibaca
     if not os.path.exists(input_file_path):
         print(f"Error: File {input_file_path} not found!")
         return
     
-    # Membaca data dari CSV
     df = pd.read_csv(input_file_path)
 
-    # Memastikan kolom 'Title' ada dalam data
+    # Pastikan kolom 'Title' ada
     if 'Title' not in df.columns:
-        print("Error: 'Title' column not found in the dataset.")
-        return
+        if 'title' in df.columns:
+            df.rename(columns={'title': 'Title'}, inplace=True)
+        else:
+            print("Error: Neither 'Title' nor 'title' column found.")
+            return
 
-    # Terapkan preprocessing pada setiap judul artikel
-    df['Processed_Text'] = df['Title'].apply(lambda x: preprocess_text(x, stopwords))
+    # Periksa keberadaan 'abstract'
+    if 'abstract' not in df.columns and 'Abstract' not in df.columns:
+        print("Warning: Abstract not found. Only title will be processed.")
+    elif 'Abstract' in df.columns and 'abstract' not in df.columns:
+        df.rename(columns={'Abstract': 'abstract'}, inplace=True)
 
-    # Membuat folder untuk menyimpan hasil yang telah diproses jika belum ada
+    # Preprocessing
+    df['Processed_Title'] = df['Title'].apply(lambda x: preprocess_text(str(x), stopwords))
+
+    if 'abstract' in df.columns:
+        df['Processed_Abstract'] = df['abstract'].apply(lambda x: preprocess_text(str(x), stopwords))
+
     os.makedirs(os.path.dirname(output_file_path), exist_ok=True)
-
-    # Simpan data yang telah diproses ke dalam file CSV
     df.to_csv(output_file_path, index=False)
     print(f"Preprocessing completed and saved to {output_file_path}")
 
 if __name__ == "__main__":
-    # Path menuju file yang disimpan oleh scraper
-    rawdata_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'data', 'rawdata', 'article_titles.csv')
-    
-    # Mendapatkan direktori skrip saat ini untuk membuat path output relatif
+    rawdata_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'data', 'rawdata', 'arxiv_cs_articles.csv')
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    processed_data_path = os.path.join(base_dir, '..', '..', 'data', 'processed_data', 'processed_titles.csv')  # Path output
-    
-    # Daftar stopwords untuk preprocessing
+    processed_data_path = os.path.join(base_dir, '..', '..', 'data', 'processed_data', 'processed_titles.csv')
     stopwords_set = set(stopwords.words('english'))
-
-    # Panggil fungsi untuk memproses data
     preprocess_data(rawdata_path, processed_data_path, stopwords_set)

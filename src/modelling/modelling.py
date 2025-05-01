@@ -1,15 +1,28 @@
 import pandas as pd
 import os
+from gensim.models.coherencemodel import CoherenceModel
+from gensim.corpora import Dictionary
 from bertopic import BERTopic
 from sentence_transformers import SentenceTransformer
 import pickle
 
 def load_data(input_file_path):
-    """Load preprocessed data from the specified path."""
+    """Load preprocessed data and combine title and abstract into one text column."""
     if not os.path.exists(input_file_path):
         print(f"Error: File {input_file_path} not found!")
         return None
     df = pd.read_csv(input_file_path)
+
+    if 'Processed_Title' not in df.columns:
+        print("Error: Processed_Title column not found.")
+        return None
+
+    if 'Processed_Abstract' in df.columns:
+        df['Processed_Text'] = df['Processed_Title'].fillna('') + ' ' + df['Processed_Abstract'].fillna('')
+    else:
+        print("Warning: Processed_Abstract column not found. Using only Processed_Title.")
+        df['Processed_Text'] = df['Processed_Title']
+
     return df
 
 def perform_bertopic_modeling(df):
@@ -47,21 +60,48 @@ def print_top_words(topic_model):
         print(topic_model.get_topic(i))
         print()
 
-if __name__ == "__main__":
-    # Path ke file data yang sudah diproses
-    processed_data_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'data', 'processed_data', 'processed_titles.csv')
+def evaluate_coherence(df, topic_model):
+    """Evaluate the topic model using Coherence Score."""
+    # Ambil topik dan kata kunci
+    topics = topic_model.get_topics()
+    topic_words = []
+    for topic_id in topics:
+        if topic_id == -1:
+            continue
+        words = [word for word, _ in topics[topic_id]]
+        topic_words.append(words)
+
+    # Tokenisasi ulang dokumen (untuk Gensim)
+    tokenized_docs = [doc.split() for doc in df['Processed_Text'].tolist()]
     
-    # Load data
+    # Buat dictionary dan corpus
+    dictionary = Dictionary(tokenized_docs)
+    corpus = [dictionary.doc2bow(doc) for doc in tokenized_docs]
+
+    # Hitung coherence score
+    coherence_model = CoherenceModel(
+        topics=topic_words,
+        texts=tokenized_docs,
+        dictionary=dictionary,
+        coherence='c_v'
+    )
+    coherence_score = coherence_model.get_coherence()
+    print(f"Coherence Score (c_v): {coherence_score:.4f}")
+    return coherence_score
+
+if __name__ == "__main__":
+    # Absolute fallback jika __file__ error:
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    processed_data_path = os.path.join(project_root, 'data', 'processed_data', 'processed_titles.csv')
     df = load_data(processed_data_path)
     if df is None:
         exit()
-
-    # Perform BERTopic modeling
+    
     topic_model, topics = perform_bertopic_modeling(df)
+    
+    # Coherence evaluation
+    evaluate_coherence(df, topic_model)
 
-    # Print top words for each topic
     print_top_words(topic_model)
-
-    # Save model and topic results
     save_model(topic_model)
     save_topic_results(df, topics)

@@ -3,8 +3,5 @@
     "dockerFile": "Dockerfile",
     "appPort": [8000],
     "forwardPorts": [8000],
-    "settings": {
-        "terminal.integrated.defaultProfile.linux": "bash"
-    },
     "postCreateCommand": "pip install -r requirements.txt"
 }
