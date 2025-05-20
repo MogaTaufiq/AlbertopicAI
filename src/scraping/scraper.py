@@ -33,7 +33,7 @@ def save_articles_to_csv(articles, filename="arxiv_cs_articles.csv"):
     """
     base_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(os.path.dirname(os.path.dirname(base_dir)))
-    save_path = os.path.join(project_root, "AlbertAI", "data", "rawdata", filename)
+    save_path = os.path.join(project_root, "AlbertopicAI", "data", "rawdata", filename)
 
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     df = pd.DataFrame(articles)

@@ -1,1 +1,4 @@
-/data
+/venv
+/data/rawdata
+/data/processed_data
+/data/final
