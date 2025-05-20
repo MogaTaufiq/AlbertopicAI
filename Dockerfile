@@ -2,9 +2,14 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
-# Copy requirements first to leverage Docker cache
+# Install necessary build tools and libraries
+RUN apt-get update && \
+    apt-get install -y gcc g++ make libx11-dev
+
+# Copy requirements.txt first to leverage Docker cache
 COPY requirements.txt .
 
+# Install dependencies
 RUN pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt
 
 # Copy the src folder into the container
