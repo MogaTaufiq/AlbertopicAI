@@ -25,19 +25,15 @@ def scrape_article_titles(url: str, max_results=1000):
     
     return data
 
-def save_titles_to_csv(titles, filename="arxiv_cs_articles.csv"):
+def save_titles_to_csv(titles, filename="data/rawdata/article_titles.csv"):
     """
     Save the scraped article titles to a CSV file in data/rawdata.
     """
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(os.path.dirname(os.path.dirname(base_dir)))
-    save_path = os.path.join(project_root, "AlbertopicAI", "data", "rawdata", filename)
-
-    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
     df = pd.DataFrame(titles)
-    df.to_csv(save_path, index=False)
-    print(f"Saved {len(df)} titles to {save_path}")
-    return save_path
+    df.to_csv(filename, index=False)
+    print(f"Saved {len(df)} titles to {filename}")
+    return filename
 
 if __name__ == "__main__":
     url = "http://export.arxiv.org/api/query?search_query=cat:cs.*&start=0&max_results=1000"
