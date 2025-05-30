@@ -1,16 +1,16 @@
-numpy==1.23.0
+numpy==1.23.3
 pandas==2.2.2
 click==8.0.4
 urllib3==1.26.15
 selenium==4.4.3
-spacy==3.2.4
+spacy==3.3.0
 scipy==1.10.1
 beautifulsoup4==4.11.1
 requests==2.28.1
 nltk==3.7
 matplotlib==3.6.2
 wordcloud==1.8.2.2
-scikit-learn==1.0.2
+scikit-learn==1.1.2
 bertopic==0.9.2
 fastapi==0.85.0
 uvicorn==0.18.3
@@ -20,3 +20,5 @@ huggingface_hub==0.11.1
 sentence-transformers==2.2.2
 prometheus-client==0.14.1
 prometheus-fastapi-instrumentator==5.11.2
+python-multipart
+PyMuPDF

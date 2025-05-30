@@ -39,7 +39,7 @@ def perform_bertopic_modeling(df):
 
 def save_model(topic_model, filename='bertopic_model.pkl'):
     """Save the trained BERTopic model to disk."""
-    model_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'data', 'final')
+    model_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', 'final')
     os.makedirs(model_dir, exist_ok=True)
     model_path = os.path.join(model_dir, filename)
     with open(model_path, 'wb') as f:
@@ -49,7 +49,7 @@ def save_model(topic_model, filename='bertopic_model.pkl'):
 def save_topic_results(df, topics, filename='topic_results.csv'):
     """Assign topics to the dataset and save the results."""
     df['Topic'] = topics
-    result_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'data', 'final', filename)
+    result_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', 'final', filename)
     df.to_csv(result_file_path, index=False)
     print(f"Topic results saved to {result_file_path}")
 
@@ -86,8 +86,8 @@ def evaluate_coherence(df, topic_model):
 
 if __name__ == "__main__":
     # Setup path
-    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-    processed_data_path = os.path.join(project_root, 'data', 'processed_data', 'processed_titles.csv')
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+    processed_data_path = os.path.join(project_root, 'data', 'processed_data', 'processed_articles.csv')
     df = load_data(processed_data_path)
     if df is None:
         exit()
