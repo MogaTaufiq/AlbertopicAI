@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="id">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>AlbertopicAI - Analisis Topik Artikel</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+            rel="stylesheet"
+        />
+        <style>
+            body {
+                font-family: "Inter", sans-serif;
+                background-color: #f3f4f6; /* Light gray background */
+            }
+            .tab-button {
+                transition: background-color 0.3s, color 0.3s;
+            }
+            .tab-button.active {
+                background-color: #3b82f6; /* Blue-600 */
+                color: white;
+            }
+            .tab-button:not(.active):hover {
+                background-color: #dbeafe; /* Blue-100 */
+            }
+            .results-card {
+                background-color: white;
+                border-radius: 0.5rem;
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
+                    0 2px 4px -1px rgba(0, 0, 0, 0.06);
+                padding: 1.5rem;
+                margin-top: 1rem;
+            }
+            /* Custom scrollbar for better aesthetics */
+            ::-webkit-scrollbar {
+                width: 8px;
+            }
+            ::-webkit-scrollbar-track {
+                background: #f1f1f1;
+                border-radius: 10px;
+            }
+            ::-webkit-scrollbar-thumb {
+                background: #888;
+                border-radius: 10px;
+            }
+            ::-webkit-scrollbar-thumb:hover {
+                background: #555;
+            }
+            .loader {
+                border: 4px solid #f3f3f3; /* Light grey */
+                border-top: 4px solid #3b82f6; /* Blue */
+                border-radius: 50%;
+                width: 40px;
+                height: 40px;
+                animation: spin 1s linear infinite;
+                margin: 20px auto;
+            }
+            @keyframes spin {
+                0% {
+                    transform: rotate(0deg);
+                }
+                100% {
+                    transform: rotate(360deg);
+                }
+            }
+        </style>
+    </head>
+    <body class="min-h-screen flex flex-col items-center justify-center p-4">
+        <div class="w-full max-w-3xl bg-white p-6 sm:p-8 rounded-xl shadow-2xl">
+            <header class="text-center mb-8">
+                <h1 class="text-3xl sm:text-4xl font-bold text-gray-800">
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke-width="1.5"
+                        stroke="currentColor"
+                        class="w-10 h-10 inline-block mb-1 text-blue-600"
+                    >
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5h0"
+                        />
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            d="M19.5 12a7.5 7.5 0 11-15 0 7.5 7.5 0 0115 0z"
+                        />
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            d="M12 12.75h0v6.75m0-6.75L12.75 12M12 12.75L11.25 12M12 12.75V6M12 6L12.75 5.25M12 6L11.25 5.25"
+                        />
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            d="M6.375 12H12m0 0h5.625m-5.625 0V6.375m0 5.625v5.625m0-5.625L6.375 12m5.625 0L17.625 12"
+                        />
+                    </svg>
+                    Albertopic<span class="text-blue-600">AI</span>
+                </h1>
+                <p class="text-gray-600 mt-2">
+                    Analisis Topik Artikel dan Temukan Artikel Terkait
+                </p>
+            </header>
+
+            <div
+                class="mb-6 flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 border-b border-gray-200"
+            >
+                <button
+                    class="tab-button active flex-1 py-3 px-4 rounded-t-lg font-medium text-gray-700"
+                    onclick="openTab(event, 'pdfTab')"
+                >
+                    Unggah PDF
+                </button>
+                <button
+                    class="tab-button flex-1 py-3 px-4 rounded-t-lg font-medium text-gray-700"
+                    onclick="openTab(event, 'textTab')"
+                >
+                    Input Teks
+                </button>
+                <button
+                    class="tab-button flex-1 py-3 px-4 rounded-t-lg font-medium text-gray-700"
+                    onclick="openTab(event, 'topicSearchTab')"
+                >
+                    Cari Topik
+                </button>
+            </div>
+
+            <div id="tabContent">
+                <div id="pdfTab" class="tab-content p-1">
+                    <h2 class="text-xl font-semibold text-gray-700 mb-3">
+                        Analisis dari File PDF
+                    </h2>
+                    <p class="text-sm text-gray-500 mb-4">
+                        Unggah artikel Anda dalam format <strong>.pdf</strong>.
+                        Sistem akan mengekstrak teks dan menganalisis topiknya.
+                    </p>
+                    <input
+                        type="file"
+                        id="pdfFile"
+                        accept=".pdf"
+                        class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 mb-4"
+                    />
+                    <button
+                        onclick="analyzePdf()"
+                        class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-lg transition duration-150"
+                    >
+                        Analisis PDF
+                    </button>
+                </div>
+
+                <div id="textTab" class="tab-content hidden p-1">
+                    <h2 class="text-xl font-semibold text-gray-700 mb-3">
+                        Analisis dari Teks
+                    </h2>
+                    <div class="mb-4">
+                        <label
+                            for="articleTitle"
+                            class="block text-sm font-medium text-gray-700 mb-1"
+                            >Judul Artikel</label
+                        >
+                        <input
+                            type="text"
+                            id="articleTitle"
+                            name="articleTitle"
+                            class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                            placeholder="Masukkan judul artikel..."
+                        />
+                    </div>
+                    <div class="mb-4">
+                        <label
+                            for="articleAbstract"
+                            class="block text-sm font-medium text-gray-700 mb-1"
+                            >Abstrak Artikel</label
+                        >
+                        <textarea
+                            id="articleAbstract"
+                            name="articleAbstract"
+                            rows="6"
+                            class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                            placeholder="Masukkan abstrak artikel..."
+                        ></textarea>
+                    </div>
+                    <button
+                        onclick="analyzeText()"
+                        class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-lg transition duration-150"
+                    >
+                        Analisis Teks
+                    </button>
+                </div>
+
+                <div id="topicSearchTab" class="tab-content hidden p-1">
+                    <h2 class="text-xl font-semibold text-gray-700 mb-3">
+                        Cari Artikel Berdasarkan Topik
+                    </h2>
+                    <div class="mb-4">
+                        <label
+                            for="topicSearchQuery"
+                            class="block text-sm font-medium text-gray-700 mb-1"
+                            >Kata Kunci Topik</label
+                        >
+                        <input
+                            type="text"
+                            id="topicSearchQuery"
+                            name="topicSearchQuery"
+                            class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                            placeholder="Contoh: machine learning, natural language processing..."
+                        />
+                    </div>
+                    <button
+                        onclick="searchByTopic()"
+                        class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-lg transition duration-150"
+                    >
+                        Cari Artikel
+                    </button>
+                </div>
+            </div>
+
+            <div id="loadingIndicator" class="hidden text-center my-6">
+                <div class="loader"></div>
+                <p class="text-gray-600">Memproses permintaan Anda...</p>
+            </div>
+            <div id="messageArea" class="my-4 text-center"></div>
+
+            <div id="resultsArea" class="mt-8"></div>
+
+            <footer class="mt-10 text-center text-sm text-gray-500">
+                <p>
+                    &copy; <span id="currentYear"></span> AlbertopicAI. Model
+                    dan analisis topik didukung oleh BERTopic.
+                </p>
+                <p class="mt-1">
+                    Catatan: Pemrosesan PDF dan inferensi model dilakukan di
+                    sisi server.
+                </p>
+            </footer>
+        </div>
+
+        <script>
+            document.getElementById("currentYear").textContent =
+                new Date().getFullYear();
+
+            // Fungsi untuk mengelola tab
+            function openTab(event, tabName) {
+                const tabContents = document.querySelectorAll(".tab-content");
+                tabContents.forEach((tab) => tab.classList.add("hidden"));
+
+                const tabButtons = document.querySelectorAll(".tab-button");
+                tabButtons.forEach((button) =>
+                    button.classList.remove("active")
+                );
+
+                document.getElementById(tabName).classList.remove("hidden");
+                event.currentTarget.classList.add("active");
+
+                // Bersihkan hasil sebelumnya saat berganti tab
+                document.getElementById("resultsArea").innerHTML = "";
+                document.getElementById("messageArea").innerHTML = "";
+            }
+
+            // Inisialisasi tab pertama agar aktif
+            document.addEventListener("DOMContentLoaded", () => {
+                document.querySelector(".tab-button").click();
+            });
+
+            const loadingIndicator =
+                document.getElementById("loadingIndicator");
+            const messageArea = document.getElementById("messageArea");
+            const resultsArea = document.getElementById("resultsArea");
+
+            // Ganti dengan URL API backend Anda yang sesungguhnya
+            const API_BASE_URL = "/api"; // Contoh, sesuaikan dengan konfigurasi FastAPI Anda
+
+            function showLoading(isLoading) {
+                if (isLoading) {
+                    loadingIndicator.classList.remove("hidden");
+                    resultsArea.innerHTML = "";
+                    messageArea.innerHTML = "";
+                } else {
+                    loadingIndicator.classList.add("hidden");
+                }
+            }
+
+            function showMessage(message, type = "info") {
+                let textColor = "text-gray-700";
+                if (type === "error") textColor = "text-red-600";
+                if (type === "success") textColor = "text-green-600";
+                messageArea.innerHTML = `<p class="${textColor} font-medium">${message}</p>`;
+            }
+
+            async function analyzePdf() {
+                const pdfFile = document.getElementById("pdfFile").files[0];
+                if (!pdfFile) {
+                    showMessage(
+                        "Silakan pilih file PDF terlebih dahulu.",
+                        "error"
+                    );
+                    return;
+                }
+
+                const formData = new FormData();
+                formData.append("pdf_file", pdfFile); // Nama field harus cocok dengan yang diharapkan backend
+
+                showLoading(true);
+                try {
+                    // PENTING: Ganti '/analyze/pdf' dengan endpoint API Anda yang sebenarnya
+                    const response = await fetch(
+                        `${API_BASE_URL}/analyze/pdf`,
+                        {
+                            method: "POST",
+                            body: formData,
+                        }
+                    );
+
+                    if (!response.ok) {
+                        const errorData = await response
+                            .json()
+                            .catch(() => ({
+                                detail: "Gagal memproses permintaan.",
+                            }));
+                        throw new Error(
+                            errorData.detail || `Error: ${response.status}`
+                        );
+                    }
+                    const data = await response.json();
+                    displayAnalysisResults(data);
+                    showMessage("Analisis PDF berhasil!", "success");
+                } catch (error) {
+                    console.error("Error analyzing PDF:", error);
+                    showMessage(
+                        `Gagal menganalisis PDF: ${error.message}`,
+                        "error"
+                    );
+                } finally {
+                    showLoading(false);
+                }
+            }
+
+            async function analyzeText() {
+                const title = document.getElementById("articleTitle").value;
+                const abstract =
+                    document.getElementById("articleAbstract").value;
+
+                if (!title.trim() || !abstract.trim()) {
+                    showMessage(
+                        "Judul dan Abstrak tidak boleh kosong.",
+                        "error"
+                    );
+                    return;
+                }
+
+                showLoading(true);
+                try {
+                    // PENTING: Ganti '/analyze/text' dengan endpoint API Anda yang sebenarnya
+                    const response = await fetch(
+                        `${API_BASE_URL}/analyze/text`,
+                        {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                title: title,
+                                abstract: abstract,
+                            }),
+                        }
+                    );
+
+                    if (!response.ok) {
+                        const errorData = await response
+                            .json()
+                            .catch(() => ({
+                                detail: "Gagal memproses permintaan.",
+                            }));
+                        throw new Error(
+                            errorData.detail || `Error: ${response.status}`
+                        );
+                    }
+                    const data = await response.json();
+                    displayAnalysisResults(data);
+                    showMessage("Analisis teks berhasil!", "success");
+                } catch (error) {
+                    console.error("Error analyzing text:", error);
+                    showMessage(
+                        `Gagal menganalisis teks: ${error.message}`,
+                        "error"
+                    );
+                } finally {
+                    showLoading(false);
+                }
+            }
+
+            async function searchByTopic() {
+                const query = document.getElementById("topicSearchQuery").value;
+                if (!query.trim()) {
+                    showMessage(
+                        "Kata kunci pencarian topik tidak boleh kosong.",
+                        "error"
+                    );
+                    return;
+                }
+
+                showLoading(true);
+                try {
+                    // PENTING: Ganti '/search/topic' dengan endpoint API Anda yang sebenarnya
+                    // Pastikan backend Anda bisa menangani query parameter seperti ?query=${encodeURIComponent(query)}
+                    const response = await fetch(
+                        `${API_BASE_URL}/search/topic?query=${encodeURIComponent(
+                            query
+                        )}`,
+                        {
+                            method: "GET",
+                        }
+                    );
+
+                    if (!response.ok) {
+                        const errorData = await response
+                            .json()
+                            .catch(() => ({
+                                detail: "Gagal memproses permintaan.",
+                            }));
+                        throw new Error(
+                            errorData.detail || `Error: ${response.status}`
+                        );
+                    }
+                    const data = await response.json();
+                    displayTopicSearchResults(data);
+                    showMessage("Pencarian topik berhasil!", "success");
+                } catch (error) {
+                    console.error("Error searching by topic:", error);
+                    showMessage(
+                        `Gagal mencari topik: ${error.message}`,
+                        "error"
+                    );
+                } finally {
+                    showLoading(false);
+                }
+            }
+
+            function displayAnalysisResults(data) {
+                resultsArea.innerHTML = ""; // Bersihkan hasil sebelumnya
+
+                if (data.predicted_topic) {
+                    const topicElement = document.createElement("div");
+                    topicElement.className = "results-card mb-6";
+                    topicElement.innerHTML = `
+                    <h3 class="text-lg font-semibold text-blue-700 mb-2">Prediksi Topik Artikel Input:</h3>
+                    <p class="text-gray-800">${
+                        data.predicted_topic || "Tidak ada topik terprediksi."
+                    }</p>
+                `;
+                    resultsArea.appendChild(topicElement);
+                }
+
+                if (data.related_articles && data.related_articles.length > 0) {
+                    const relatedTitle = document.createElement("h3");
+                    relatedTitle.className =
+                        "text-xl font-semibold text-gray-700 mb-3";
+                    relatedTitle.textContent = "Artikel Terkait:";
+                    resultsArea.appendChild(relatedTitle);
+
+                    data.related_articles.forEach((article) => {
+                        const articleCard = document.createElement("div");
+                        articleCard.className = "results-card mb-4";
+                        articleCard.innerHTML = `
+                        <h4 class="text-md font-semibold text-blue-600 mb-1">${
+                            article.title || "Tanpa Judul"
+                        }</h4>
+                        <p class="text-xs text-gray-500 mb-1"><strong>Penulis:</strong> ${
+                            article.authors ? article.authors.join(", ") : "N/A"
+                        } | <strong>Tahun:</strong> ${article.year || "N/A"}</p>
+                        <p class="text-xs text-gray-500 mb-2"><strong>Topik Model:</strong> ${
+                            article.topic_keywords || "N/A"
+                        }</p>
+                        <p class="text-sm text-gray-700">${
+                            article.abstract_snippet
+                                ? article.abstract_snippet + "..."
+                                : "Abstrak tidak tersedia."
+                        }</p>
+                    `;
+                        resultsArea.appendChild(articleCard);
+                    });
+                } else if (data.predicted_topic) {
+                    // Jika ada prediksi topik tapi tidak ada artikel terkait
+                    const noRelatedMessage = document.createElement("p");
+                    noRelatedMessage.className = "text-gray-600 mt-4";
+                    noRelatedMessage.textContent =
+                        "Tidak ditemukan artikel terkait lainnya dalam dataset.";
+                    resultsArea.appendChild(noRelatedMessage);
+                }
+            }
+
+            function displayTopicSearchResults(data) {
+                resultsArea.innerHTML = ""; // Bersihkan hasil sebelumnya
+
+                if (data.articles && data.articles.length > 0) {
+                    const searchTitle = document.createElement("h3");
+                    searchTitle.className =
+                        "text-xl font-semibold text-gray-700 mb-3";
+                    searchTitle.textContent = `Hasil Pencarian Topik:`;
+                    resultsArea.appendChild(searchTitle);
+
+                    data.articles.forEach((article) => {
+                        const articleCard = document.createElement("div");
+                        articleCard.className = "results-card mb-4";
+                        articleCard.innerHTML = `
+                        <h4 class="text-md font-semibold text-blue-600 mb-1">${
+                            article.title || "Tanpa Judul"
+                        }</h4>
+                        <p class="text-xs text-gray-500 mb-1"><strong>Penulis:</strong> ${
+                            article.authors ? article.authors.join(", ") : "N/A"
+                        } | <strong>Tahun:</strong> ${article.year || "N/A"}</p>
+                        <p class="text-xs text-gray-500 mb-2"><strong>Topik Model:</strong> ${
+                            article.topic_keywords || "N/A"
+                        }</p>
+                        <p class="text-sm text-gray-700">${
+                            article.abstract_snippet
+                                ? article.abstract_snippet + "..."
+                                : "Abstrak tidak tersedia."
+                        }</p>
+                    `;
+                        resultsArea.appendChild(articleCard);
+                    });
+                } else {
+                    const noResultsMessage = document.createElement("p");
+                    noResultsMessage.className = "text-gray-600 mt-4";
+                    noResultsMessage.textContent =
+                        "Tidak ditemukan artikel untuk topik yang dicari.";
+                    resultsArea.appendChild(noResultsMessage);
+                }
+            }
+        </script>
+    </body>
+</html>

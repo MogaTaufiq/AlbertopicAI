@@ -5,6 +5,8 @@ from gensim.corpora import Dictionary
 from bertopic import BERTopic
 from sentence_transformers import SentenceTransformer
 import pickle
+from prometheus_client import start_http_server, Gauge
+import threading
 
 def load_data(input_file_path):
     """Load preprocessed data and combine title and abstract into one text column."""
@@ -27,19 +29,17 @@ def load_data(input_file_path):
 
 def perform_bertopic_modeling(df):
     """Perform BERTopic for topic modeling."""
-    # Menggunakan SentenceTransformer untuk menghasilkan embeddings
-    model = SentenceTransformer('paraphrase-MiniLM-L6-v2')  # Model transformer BERT yang ringan
+    model = SentenceTransformer('paraphrase-MiniLM-L6-v2')
     embeddings = model.encode(df['Processed_Text'].tolist(), show_progress_bar=True)
 
-    # Menerapkan BERTopic
     topic_model = BERTopic(nr_topics="auto")
     topics, _ = topic_model.fit_transform(df['Processed_Text'].tolist(), embeddings)
-    
+
     return topic_model, topics
 
 def save_model(topic_model, filename='bertopic_model.pkl'):
     """Save the trained BERTopic model to disk."""
-    model_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'data', 'final')
+    model_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', 'final')
     os.makedirs(model_dir, exist_ok=True)
     model_path = os.path.join(model_dir, filename)
     with open(model_path, 'wb') as f:
@@ -49,7 +49,7 @@ def save_model(topic_model, filename='bertopic_model.pkl'):
 def save_topic_results(df, topics, filename='topic_results.csv'):
     """Assign topics to the dataset and save the results."""
     df['Topic'] = topics
-    result_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'data', 'final', filename)
+    result_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', 'final', filename)
     df.to_csv(result_file_path, index=False)
     print(f"Topic results saved to {result_file_path}")
 
@@ -62,7 +62,6 @@ def print_top_words(topic_model):
 
 def evaluate_coherence(df, topic_model):
     """Evaluate the topic model using Coherence Score."""
-    # Ambil topik dan kata kunci
     topics = topic_model.get_topics()
     topic_words = []
     for topic_id in topics:
@@ -71,14 +70,10 @@ def evaluate_coherence(df, topic_model):
         words = [word for word, _ in topics[topic_id]]
         topic_words.append(words)
 
-    # Tokenisasi ulang dokumen (untuk Gensim)
     tokenized_docs = [doc.split() for doc in df['Processed_Text'].tolist()]
-    
-    # Buat dictionary dan corpus
     dictionary = Dictionary(tokenized_docs)
     corpus = [dictionary.doc2bow(doc) for doc in tokenized_docs]
 
-    # Hitung coherence score
     coherence_model = CoherenceModel(
         topics=topic_words,
         texts=tokenized_docs,
@@ -90,18 +85,27 @@ def evaluate_coherence(df, topic_model):
     return coherence_score
 
 if __name__ == "__main__":
-    # Absolute fallback jika __file__ error:
-    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-    processed_data_path = os.path.join(project_root, 'data', 'processed_data', 'processed_titles.csv')
+    # Setup path
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+    processed_data_path = os.path.join(project_root, 'data', 'processed_data', 'processed_articles.csv')
     df = load_data(processed_data_path)
     if df is None:
         exit()
-    
-    topic_model, topics = perform_bertopic_modeling(df)
-    
-    # Coherence evaluation
-    evaluate_coherence(df, topic_model)
 
+    # Start Prometheus metrics server
+    def start_metrics_server():
+        start_http_server(8000)
+    coherence_score_gauge = Gauge('bertopic_coherence_score', 'Coherence Score dari BERTopic')
+    threading.Thread(target=start_metrics_server, daemon=True).start()
+
+    # Perform modeling
+    topic_model, topics = perform_bertopic_modeling(df)
+
+    # Evaluate and update metrics
+    coherence_score = evaluate_coherence(df, topic_model)
+    coherence_score_gauge.set(coherence_score)
+
+    # Output
     print_top_words(topic_model)
     save_model(topic_model)
     save_topic_results(df, topics)
