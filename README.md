@@ -222,13 +222,6 @@ Aplikasi FastAPI menyediakan beberapa endpoint berikut (diasumsikan berjalan di 
 -   Implementasi autentikasi dan otorisasi jika diperlukan.
 -   Peningkatan UI/UX antarmuka web.
 <<<<<<< HEAD
-
-## 📄 Lisensi
-
-(Jika ada, sebutkan lisensi proyek Anda di sini, misalnya: MIT License, Apache 2.0, dll.)
-
 ---
 
-_README ini dibuat untuk memberikan gambaran umum proyek AlbertopicAI. Sesuaikan detailnya lebih lanjut sesuai dengan implementasi spesifik Anda._
-=======
 >>>>>>> 4f12336c3450f757af06022e4b9e644c328bcb02
