@@ -221,6 +221,7 @@ Aplikasi FastAPI menyediakan beberapa endpoint berikut (diasumsikan berjalan di 
 -   Pengembangan _dashboard_ Grafana yang lebih detail untuk memantau metrik model dan performa sistem.
 -   Implementasi autentikasi dan otorisasi jika diperlukan.
 -   Peningkatan UI/UX antarmuka web.
+<<<<<<< HEAD
     <<<<<<< HEAD
 
 ## 📄 Lisensi
@@ -232,3 +233,9 @@ Aplikasi FastAPI menyediakan beberapa endpoint berikut (diasumsikan berjalan di 
 # _README ini dibuat untuk memberikan gambaran umum proyek AlbertopicAI. Sesuaikan detailnya lebih lanjut sesuai dengan implementasi spesifik Anda._
 
 > > > > > > > 4f12336c3450f757af06022e4b9e644c328bcb02
+=======
+<<<<<<< HEAD
+---
+
+>>>>>>> 4f12336c3450f757af06022e4b9e644c328bcb02
+>>>>>>> 667dd8e4eb91e646a905c13335bbe530c8081836
