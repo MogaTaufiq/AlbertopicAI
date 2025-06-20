@@ -11,17 +11,17 @@ import json
 
 try:
     nltk.data.find('tokenizers/punkt')
-except nltk.downloader.DownloadError:
+except LookupError: # Menggunakan LookupError yang lebih umum
     nltk.download('punkt')
 
 try:
     nltk.data.find('corpora/stopwords')
-except nltk.downloader.DownloadError:
+except LookupError:
     nltk.download('stopwords')
 
 try:
     nltk.data.find('corpora/wordnet')
-except nltk.downloader.DownloadError:
+except LookupError:
     nltk.download('wordnet')
 
 # NLP_SPACY = None
@@ -105,7 +105,7 @@ def run_preprocess_pipeline(input_jsonl_path, output_csv_path, language_stopword
 
 if __name__ == "__main__":
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-    raw_data_jsonl_path = os.path.join(project_root, 'data', 'rawdata', 'arxiv_cs_articles.jsonl')
+    raw_data_jsonl_path = os.path.join(project_root, 'data', 'rawdata', 'arxiv_cs_articles_by_date.jsonl')
     processed_data_csv_path = os.path.join(project_root, 'data', 'processed_data', 'processed_articles.csv')
     english_stopwords = set(stopwords.words('english'))
     

@@ -1,4 +1,6 @@
 /venv
-/data/rawdata
+/.venv
 /data/processed_data
 /data/final
+/mlruns
+    

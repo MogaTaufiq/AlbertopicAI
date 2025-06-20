@@ -1,199 +1,292 @@
 import os
 import requests
-from bs4 import BeautifulSoup # Pastikan BeautifulSoup diinstal untuk XML
+from bs4 import BeautifulSoup # Pastikan BeautifulSoup diinstal
 import json
 import time
+import calendar # Untuk mendapatkan jumlah hari dalam sebulan
+from datetime import datetime, timedelta # Untuk manipulasi tanggal
 
 # --- Konfigurasi ---
 ARXIV_API_URL = "http://export.arxiv.org/api/query?"
-DEFAULT_QUERY = "cat:cs.*"  # Kategori Computer Science, bisa diubah
-TARGET_ARTICLES_GOAL = 10000  # Target total artikel
-BATCH_SIZE_PER_ITERATION = 500  # Jumlah artikel per panggilan API / per iterasi
-OUTPUT_FILENAME = "data/rawdata/arxiv_cs_articles.jsonl"
-CHECKPOINT_FILENAME = "data/rawdata/scraper_checkpoint.json"
+DEFAULT_BASE_QUERY = "cat:cs.*"  # Kategori Computer Science, bisa diubah
+TARGET_ARTICLES_GOAL = 10000     # Target total artikel yang ingin dikumpulkan
+BATCH_SIZE_PER_ITERATION = 200   # Jumlah artikel per panggilan API (lebih kecil lebih aman)
+OUTPUT_FILENAME = "data/rawdata/arxiv_cs_articles_by_date.jsonl" # Nama file output baru
+CHECKPOINT_FILENAME = "data/rawdata/scraper_checkpoint_by_date.json" # File checkpoint baru
+
+# Konfigurasi Rentang Tanggal Default untuk Scraping
+# Skrip akan mengambil data mundur dari END_YEAR/END_MONTH hingga START_YEAR/START_MONTH
+CURRENT_DATETIME = datetime.now()
+DEFAULT_END_YEAR = CURRENT_DATETIME.year
+DEFAULT_END_MONTH = CURRENT_DATETIME.month
+# Defaultnya, ambil data hingga 3 tahun ke belakang dari bulan saat ini
+three_years_ago = CURRENT_DATETIME - timedelta(days=3*365)
+DEFAULT_START_YEAR = three_years_ago.year
+DEFAULT_START_MONTH = three_years_ago.month
 
 # Pastikan direktori data/rawdata ada
 os.makedirs(os.path.dirname(OUTPUT_FILENAME), exist_ok=True)
 
 # --- Fungsi Checkpoint ---
 def load_checkpoint():
-    """Memuat checkpoint terakhir (next_start_index dan total_articles_scraped)."""
+    """
+    Memuat checkpoint terakhir.
+    Mengembalikan: current_year, current_month, current_month_start_index, total_articles_scraped_overall.
+    Jika checkpoint tidak ada atau rusak, mengembalikan nilai default untuk memulai dari awal.
+    """
     if os.path.exists(CHECKPOINT_FILENAME):
         with open(CHECKPOINT_FILENAME, 'r') as f:
             try:
-                checkpoint = json.load(f)
-                return checkpoint.get('next_start_index', 0), checkpoint.get('total_articles_scraped', 0)
+                cp = json.load(f)
+                # Pastikan semua kunci ada, jika tidak, anggap checkpoint tidak valid
+                if all(k in cp for k in ['current_processing_year', 'current_processing_month', 
+                                         'current_month_start_index', 'total_articles_scraped_overall']):
+                    return (cp['current_processing_year'],
+                            cp['current_processing_month'],
+                            cp['current_month_start_index'],
+                            cp['total_articles_scraped_overall'])
+                else:
+                    print(f"Peringatan: File checkpoint '{CHECKPOINT_FILENAME}' tidak lengkap. Memulai dari awal.")
             except json.JSONDecodeError:
                 print(f"Peringatan: File checkpoint '{CHECKPOINT_FILENAME}' rusak. Memulai dari awal.")
-                return 0, 0
-    return 0, 0
+    return None, None, 0, 0 # Default jika tidak ada checkpoint atau rusak
 
-def save_checkpoint(next_start_index, total_articles_scraped):
-    """Menyimpan checkpoint saat ini."""
+def save_checkpoint(year_to_process, month_to_process, month_start_idx, total_scraped_overall):
+    """Menyimpan checkpoint saat ini ke file JSON."""
+    checkpoint_data = {
+        'current_processing_year': year_to_process,
+        'current_processing_month': month_to_process,
+        'current_month_start_index': month_start_idx,
+        'total_articles_scraped_overall': total_scraped_overall
+    }
     with open(CHECKPOINT_FILENAME, 'w') as f:
-        json.dump({'next_start_index': next_start_index, 'total_articles_scraped': total_articles_scraped}, f, indent=2)
-    print(f"Checkpoint disimpan: next_start_index={next_start_index}, total_articles_scraped={total_articles_scraped}")
+        json.dump(checkpoint_data, f, indent=2)
+    # Komentar di bawah bisa diaktifkan untuk debugging lebih detail
+    # print(f"Checkpoint disimpan: Y={year_to_process}, M={month_to_process}, StartIdxBulan={month_start_idx}, TotalKeseluruhan={total_scraped_overall}")
 
-# --- Fungsi Parsing Data ---
-def parse_arxiv_entry(entry_soup):
-    """Mengekstrak data dari satu <entry> XML menjadi format JSON yang diinginkan."""
+# --- Fungsi Helper Tanggal ---
+def get_arxiv_date_query_for_month(year, month, base_query=DEFAULT_BASE_QUERY):
+    """Membuat string filter tanggal untuk kueri arXiv untuk satu bulan penuh."""
+    # Mendapatkan hari terakhir dalam bulan dan tahun yang diberikan
+    _, last_day_of_month = calendar.monthrange(year, month)
     
-    # Fungsi pembantu untuk mendapatkan teks dengan aman
-    def get_text_safely(element, tag_name, namespace_uri=None):
-        if namespace_uri: # Jika ada namespace spesifik (meskipun BS4 kadang bisa tanpa ini)
-            found = element.find(tag_name, namespaces=namespace_uri)
-        else: # Mencoba tanpa namespace eksplisit dulu
-            found = element.find(tag_name)
-            # Jika tidak ditemukan, coba dengan prefix 'atom:' karena itu umum di Atom feed
-            if not found:
-                 found = element.find(f"atom:{tag_name}")
+    # Format tanggal sesuai yang diharapkan arXiv API: YYYYMMDD
+    start_date_str = f"{year:04d}{month:02d}01" # Tanggal 1
+    end_date_str = f"{year:04d}{month:02d}{last_day_of_month:02d}" # Hari terakhir bulan itu
+    
+    date_filter = f"submittedDate:[{start_date_str} TO {end_date_str}]"
+    
+    # Gabungkan dengan base_query jika ada
+    if base_query and base_query.strip():
+        return f"({base_query}) AND {date_filter}"
+    else:
+        return date_filter
 
-        return found.text.strip().replace('\n', ' ') if found else ""
+def get_previous_month_year(year, month):
+    """Mendapatkan tahun dan bulan sebelumnya dari tahun dan bulan yang diberikan."""
+    if month == 1: # Jika bulan Januari, bulan sebelumnya adalah Desember tahun lalu
+        return year - 1, 12
+    else: # Jika bukan Januari, cukup kurangi bulannya
+        return year, month - 1
+
+# --- Fungsi Parsing Data dari Entri XML arXiv ---
+def parse_arxiv_entry(entry_soup):
+    """Mengekstrak data dari satu elemen <entry> XML menjadi format JSON yang diinginkan."""
+    
+    # Fungsi pembantu untuk mendapatkan teks dengan aman dari tag, mencoba dengan prefix 'atom:' jika perlu
+    def get_text_safely(element, tag_name):
+        found_tag = element.find(tag_name)
+        if not found_tag: # Jika tidak ditemukan, coba dengan prefix 'atom:'
+             found_tag = element.find(f"atom:{tag_name}")
+        return found_tag.text.strip().replace('\n', ' ') if found_tag else ""
 
     title = get_text_safely(entry_soup, 'title')
     abstract = get_text_safely(entry_soup, 'summary') # Di arXiv, 'summary' adalah abstrak
 
-    authors_elements = entry_soup.find_all('author') # atau 'atom:author'
+    authors_elements = entry_soup.find_all('author')
     if not authors_elements and entry_soup.find('atom:author'): # Coba dengan prefix jika find_all gagal
         authors_elements = entry_soup.find_all('atom:author')
         
     authors = [get_text_safely(author_element, 'name') for author_element in authors_elements if get_text_safely(author_element, 'name')]
     
     published_date = get_text_safely(entry_soup, 'published')
-    year = published_date.split('-')[0] if published_date else ""
+    year_str = published_date.split('-')[0] if published_date else "" # Ambil tahun dari tanggal publikasi
 
     # Mencari DOI
     doi = ""
-    doi_link_tag = entry_soup.find('link', {'title': 'doi'}) # Preferensi format link DOI
+    # Preferensi format link DOI
+    doi_link_tag = entry_soup.find('link', {'title': 'doi'}) 
     if doi_link_tag and doi_link_tag.get('href'):
         doi = doi_link_tag['href'].replace('http://dx.doi.org/', '').replace('https://doi.org/', '')
-    else: # Jika tidak ada di link, coba tag arxiv:doi
-        doi_tag = entry_soup.find('arxiv:doi') # Membutuhkan namespace 'arxiv'
+    else: # Jika tidak ada di link, coba tag arxiv:doi (membutuhkan namespace 'arxiv')
+        doi_tag = entry_soup.find('arxiv:doi') 
         if doi_tag:
             doi = doi_tag.text.strip()
 
     return {
         "title": title,
         "abstract": abstract,
-        "authors": authors,
+        "authors": authors, # Disimpan sebagai list of strings
         "journal_conference_name": "arXiv", # Sesuai permintaan
         "publisher": "arXiv", # Sesuai permintaan
-        "year": year,
+        "year": year_str,
         "doi": doi,
         "group_name": "default_group" # Sesuai permintaan
     }
 
-# --- Fungsi Scraping ---
-def scrape_arxiv_batch(api_query, start_index, batch_size_limit):
-    """Mengambil satu batch artikel dari arXiv API."""
+# --- Fungsi Scraping per Batch ---
+def scrape_arxiv_batch(api_query_with_date_filter, start_index_in_month_batch, batch_size_limit):
+    """Mengambil satu batch artikel dari arXiv API untuk kueri dan rentang tanggal tertentu."""
     params = {
-        "search_query": api_query,
-        "start": start_index,
+        "search_query": api_query_with_date_filter,
+        "start": start_index_in_month_batch,
         "max_results": batch_size_limit,
-        "sortBy": "submittedDate", # Urutkan berdasarkan tanggal submit
-        "sortOrder": "descending" # Dari yang terbaru (untuk mendapatkan artikel cs/recent)
-                                   # atau 'ascending' jika ingin dari yang terlama
+        "sortBy": "submittedDate", # Urutkan berdasarkan tanggal submit (dalam rentang tanggal yang sudah difilter)
+        "sortOrder": "descending"  # Dari yang terbaru dalam rentang tersebut
     }
     
-    print(f"Mengambil data dari arXiv: start={start_index}, max_results={batch_size_limit}")
+    # print(f"  Mengambil data: start_idx_bulan={start_index_in_month_batch}, query='{api_query_with_date_filter}'") # Untuk debugging
     try:
         response = requests.get(ARXIV_API_URL, params=params)
         response.raise_for_status()  # Akan error jika status code 4xx atau 5xx
     except requests.exceptions.RequestException as e:
-        print(f"Error saat mengambil data dari arXiv: {e}")
-        return []
+        print(f"  Error saat request API: {e}")
+        return [] # Kembalikan list kosong jika ada error
 
-    # Menggunakan 'xml' parser dari lxml jika tersedia dan lebih baik, atau parser XML bawaan BS4
+    # Menggunakan 'xml' parser dari lxml jika tersedia (lebih baik), atau parser XML bawaan BS4
     soup = BeautifulSoup(response.content, "xml") 
     
     entries = soup.find_all("entry") # atau "atom:entry"
-    if not entries and soup.find("atom:entry"): # Coba dengan prefix 'atom'
+    if not entries and soup.find("atom:entry"): # Coba dengan prefix 'atom' jika tidak ditemukan
         entries = soup.find_all("atom:entry")
 
-    scraped_articles = []
-    if not entries:
-        print("Tidak ada entri artikel ditemukan dalam respons API untuk batch ini.")
-        return []
-
-    for entry_element in entries:
-        article_details = parse_arxiv_entry(entry_element)
-        scraped_articles.append(article_details)
-    
-    return scraped_articles
+    scraped_articles_in_batch = [parse_arxiv_entry(entry_element) for entry_element in entries]
+    return scraped_articles_in_batch
 
 # --- Fungsi Penyimpanan Data ---
-def append_articles_to_jsonl(list_of_articles, output_filepath):
-    """Menambahkan daftar artikel ke file JSON Lines."""
+def append_articles_to_jsonl(list_of_articles_to_append, output_filepath):
+    """Menambahkan daftar artikel (list of dicts) ke file JSON Lines."""
     with open(output_filepath, 'a', encoding='utf-8') as f:
-        for article in list_of_articles:
-            f.write(json.dumps(article) + '\n')
+        for article_dict in list_of_articles_to_append:
+            f.write(json.dumps(article_dict) + '\n')
 
-# --- Fungsi Utama Scraper ---
-def run_incremental_scraper(query_string=DEFAULT_QUERY,
-                            target_total_articles=TARGET_ARTICLES_GOAL,
-                            batch_fetch_size=BATCH_SIZE_PER_ITERATION):
-    """Menjalankan scraper secara bertahap dengan checkpoint."""
+# --- Fungsi Utama Scraper dengan Iterasi Tanggal ---
+def run_scraper_by_date_range(
+    base_query_str=DEFAULT_BASE_QUERY,
+    target_total_articles_to_scrape=TARGET_ARTICLES_GOAL,
+    batch_size_to_fetch=BATCH_SIZE_PER_ITERATION,
+    # Batas tanggal paling lama untuk diambil datanya
+    limit_stop_year=DEFAULT_START_YEAR, 
+    limit_stop_month=DEFAULT_START_MONTH,
+    # Tanggal mulai iterasi (mundur dari sini)
+    iteration_start_year=DEFAULT_END_YEAR,
+    iteration_start_month=DEFAULT_END_MONTH
+):
+    # Memuat status dari checkpoint
+    cp_year, cp_month, cp_month_start_idx, total_scraped_count_overall = load_checkpoint()
+
+    # Menentukan titik awal iterasi berdasarkan checkpoint atau default
+    if cp_year is not None and cp_month is not None: # Jika ada checkpoint valid
+        current_iter_year = cp_year
+        current_iter_month = cp_month
+        current_month_start_index_val = cp_month_start_idx
+        print(f"--- Melanjutkan Scraper dari Checkpoint ---")
+        print(f"Tahun: {current_iter_year}, Bulan: {current_iter_month}, Start Index Bulan Ini: {current_month_start_index_val}")
+    else: # Jika tidak ada checkpoint, mulai dari awal (sesuai parameter fungsi)
+        current_iter_year = iteration_start_year
+        current_iter_month = iteration_start_month
+        current_month_start_index_val = 0
+        total_scraped_count_overall = 0 # Mulai dari nol jika tidak ada checkpoint
+        print(f"--- Memulai Scraper Baru ---")
+        print(f"Mulai dari Tahun: {current_iter_year}, Bulan: {current_iter_month}")
     
-    current_start_index, total_scraped_count = load_checkpoint()
-    
-    print(f"--- Memulai Scraper arXiv ---")
-    print(f"Target: {target_total_articles} artikel.")
-    print(f"Status Saat Ini: {total_scraped_count} artikel telah di-scrape.")
-    print(f"Melanjutkan dari start_index: {current_start_index}.")
+    print(f"Target: {target_total_articles_to_scrape} artikel. Saat ini terkumpul: {total_scraped_count_overall}.")
+    print(f"Akan berhenti jika mencapai atau melewati tanggal {limit_stop_month:02d}-{limit_stop_year} atau target artikel terpenuhi.")
 
-    if total_scraped_count >= target_total_articles:
-        print("Target artikel telah tercapai atau terlampaui. Tidak ada yang perlu di-scrape.")
-        return
-
-    while total_scraped_count < target_total_articles:
-        print(f"\nIterasi Baru: (Terkumpul: {total_scraped_count}/{target_total_articles})")
-        
-        # Tentukan berapa banyak yang akan di-scrape di iterasi ini
-        remaining_needed = target_total_articles - total_scraped_count
-        current_batch_to_fetch = min(batch_fetch_size, remaining_needed)
-        
-        if current_batch_to_fetch <= 0: # Seharusnya tidak terjadi jika logika di atas benar
+    # Loop utama: terus berjalan selama target artikel belum tercapai
+    while total_scraped_count_overall < target_total_articles_to_scrape:
+        # Cek apakah sudah melewati batas tanggal stop yang ditentukan
+        if current_iter_year < limit_stop_year or \
+           (current_iter_year == limit_stop_year and current_iter_month < limit_stop_month):
+            print(f"Telah mencapai atau melewati batas tanggal stop ({limit_stop_month:02d}-{limit_stop_year}). Menghentikan scraper.")
             break
 
-        newly_fetched_articles = scrape_arxiv_batch(
-            api_query=query_string,
-            start_index=current_start_index,
-            batch_size_limit=current_batch_to_fetch
-        )
+        print(f"\nMemproses bulan {current_iter_month:02d}-{current_iter_year} (Total terkumpul: {total_scraped_count_overall}/{target_total_articles_to_scrape})")
         
-        if not newly_fetched_articles:
-            print("Tidak ada artikel baru yang ditemukan. Kemungkinan sudah mencapai akhir hasil pencarian atau ada masalah API.")
-            break # Hentikan jika tidak ada artikel baru
+        # Buat kueri API untuk bulan dan tahun saat ini
+        api_query_for_current_month = get_arxiv_date_query_for_month(current_iter_year, current_iter_month, base_query_str)
         
-        append_articles_to_jsonl(newly_fetched_articles, OUTPUT_FILENAME)
-        
-        num_actually_scraped_this_batch = len(newly_fetched_articles)
-        total_scraped_count += num_actually_scraped_this_batch
-        current_start_index += num_actually_scraped_this_batch # Penting: update berdasarkan jumlah *aktual*
-        
-        save_checkpoint(current_start_index, total_scraped_count)
-        print(f"Berhasil mengambil dan menyimpan {num_actually_scraped_this_batch} artikel baru.")
-        print(f"Total artikel terkumpul: {total_scraped_count}.")
-        
-        # Jeda untuk menghindari request berlebihan ke API
-        print("Memberi jeda 3 detik sebelum batch berikutnya...")
-        time.sleep(3)
+        articles_found_in_current_month_this_session = False # Flag untuk melacak apakah ada artikel di bulan ini
 
+        # Loop paginasi di dalam bulan ini
+        while total_scraped_count_overall < target_total_articles_to_scrape:
+            remaining_needed_to_reach_goal = target_total_articles_to_scrape - total_scraped_count_overall
+            current_batch_size_for_api = min(batch_size_to_fetch, remaining_needed_to_reach_goal)
+            
+            if current_batch_size_for_api <= 0: # Jika target sudah tercapai
+                break
+
+            print(f"  Batch untuk {current_iter_month:02d}-{current_iter_year}: start_idx={current_month_start_index_val}, minta_size={current_batch_size_for_api}")
+            
+            newly_fetched_articles_list = scrape_arxiv_batch(
+                api_query_for_current_month,
+                current_month_start_index_val,
+                current_batch_size_for_api
+            )
+
+            if not newly_fetched_articles_list: # Jika tidak ada artikel baru di batch ini
+                print(f"  Tidak ada artikel baru ditemukan untuk {current_iter_month:02d}-{current_iter_year} pada start_idx={current_month_start_index_val}.")
+                # Jika ini adalah batch pertama bulan ini dan kosong, berarti bulan ini memang tidak ada artikel (atau sudah habis)
+                if not articles_found_in_current_month_this_session and current_month_start_index_val == 0:
+                    print(f"  Tidak ada artikel sama sekali di bulan {current_iter_month:02d}-{current_iter_year} (atau sudah semua diambil).")
+                break # Keluar dari loop paginasi bulan ini, pindah ke bulan sebelumnya
+            
+            articles_found_in_current_month_this_session = True
+            append_articles_to_jsonl(newly_fetched_articles_list, OUTPUT_FILENAME)
+            
+            num_actually_scraped_this_batch = len(newly_fetched_articles_list)
+            total_scraped_count_overall += num_actually_scraped_this_batch
+            current_month_start_index_val += num_actually_scraped_this_batch # Maju untuk batch berikutnya di bulan ini
+            
+            # Simpan checkpoint setelah setiap batch berhasil
+            save_checkpoint(current_iter_year, current_iter_month, current_month_start_index_val, total_scraped_count_overall)
+            print(f"  Berhasil menyimpan {num_actually_scraped_this_batch} artikel. Total keseluruhan: {total_scraped_count_overall}.")
+            
+            # Jika API mengembalikan lebih sedikit dari yang diminta, anggap akhir dari hasil untuk bulan ini
+            if num_actually_scraped_this_batch < current_batch_size_for_api:
+                print(f"  Batch terakhir untuk bulan {current_iter_month:02d}-{current_iter_year} (diterima {num_actually_scraped_this_batch} dari {current_batch_size_for_api} diminta). Pindah ke bulan sebelumnya.")
+                break # Keluar dari loop paginasi bulan ini
+            
+            print("  Jeda 3 detik sebelum batch berikutnya dalam bulan yang sama...")
+            time.sleep(3) # Jeda untuk menghormati API server
+        
+        # Setelah selesai dengan satu bulan (baik karena habis artikelnya atau target tercapai),
+        # pindah ke bulan sebelumnya untuk iterasi berikutnya.
+        current_iter_year, current_iter_month = get_previous_month_year(current_iter_year, current_iter_month)
+        current_month_start_index_val = 0 # Reset start index untuk bulan baru
+        
+        # Simpan checkpoint sebelum memulai bulan baru (atau jika target sudah tercapai dan loop luar akan berhenti)
+        save_checkpoint(current_iter_year, current_iter_month, current_month_start_index_val, total_scraped_count_overall)
+
+    # Selesai loop utama
     print(f"\n--- Scraper Selesai ---")
-    print(f"Total artikel yang berhasil di-scrape: {total_scraped_count}.")
-    if total_scraped_count < target_total_articles:
-        print(f"Peringatan: Target {target_total_articles} artikel tidak tercapai.")
+    print(f"Total artikel yang berhasil di-scrape: {total_scraped_count_overall}.")
+    if total_scraped_count_overall < target_total_articles_to_scrape:
+        print(f"Peringatan: Target {target_total_articles_to_scrape} artikel tidak tercapai.")
+    else:
+        print(f"Target {target_total_articles_to_scrape} artikel telah tercapai atau terlampaui.")
 
-# --- Eksekusi Skrip ---
+# --- Bagian Eksekusi Skrip ---
 if __name__ == "__main__":
-    # Contoh menjalankan scraper:
-    # Anda bisa mengganti parameter jika diperlukan, misalnya:
-    # run_incremental_scraper(query_string="cat:cs.AI", target_total_articles=5000, batch_fetch_size=200)
-    run_incremental_scraper()
+    print("Memulai skrip scraper arXiv dengan iterasi tanggal...")
+    run_scraper_by_date_range(
+         base_query_str="cat:cs.AI OR cat:cs.LG",
+         target_total_articles_to_scrape=5000,
+         batch_size_to_fetch=100,
+         limit_stop_year=2023,
+         limit_stop_month=1,
+         iteration_start_year=2024,
+         iteration_start_month=5
+    )
+    print("Eksekusi scraper selesai.")
 
-    # Untuk menguji checkpointing:
-    # 1. Jalankan `run_incremental_scraper(target_total_articles=10, batch_fetch_size=5)`
-    #    Ini akan mengambil 5, lalu 5 lagi. File checkpoint akan dibuat/diupdate.
-    # 2. Jalankan lagi `run_incremental_scraper(target_total_articles=15, batch_fetch_size=5)`
-    #    Ini akan melanjutkan dari index 10 dan mengambil 5 artikel berikutnya.
-    # 3. Untuk reset, hapus file `arxiv_cs_articles.jsonl` dan `scraper_checkpoint.json`.

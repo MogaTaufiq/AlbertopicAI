@@ -242,7 +242,6 @@
         <script>
             document.getElementById("currentYear").textContent =
                 new Date().getFullYear();
-
             // Fungsi untuk mengelola tab
             function openTab(event, tabName) {
                 const tabContents = document.querySelectorAll(".tab-content");
@@ -316,11 +315,9 @@
                     );
 
                     if (!response.ok) {
-                        const errorData = await response
-                            .json()
-                            .catch(() => ({
-                                detail: "Gagal memproses permintaan.",
-                            }));
+                        const errorData = await response.json().catch(() => ({
+                            detail: "Gagal memproses permintaan.",
+                        }));
                         throw new Error(
                             errorData.detail || `Error: ${response.status}`
                         );
@@ -368,11 +365,9 @@
                     );
 
                     if (!response.ok) {
-                        const errorData = await response
-                            .json()
-                            .catch(() => ({
-                                detail: "Gagal memproses permintaan.",
-                            }));
+                        const errorData = await response.json().catch(() => ({
+                            detail: "Gagal memproses permintaan.",
+                        }));
                         throw new Error(
                             errorData.detail || `Error: ${response.status}`
                         );
@@ -415,11 +410,9 @@
                     );
 
                     if (!response.ok) {
-                        const errorData = await response
-                            .json()
-                            .catch(() => ({
-                                detail: "Gagal memproses permintaan.",
-                            }));
+                        const errorData = await response.json().catch(() => ({
+                            detail: "Gagal memproses permintaan.",
+                        }));
                         throw new Error(
                             errorData.detail || `Error: ${response.status}`
                         );
